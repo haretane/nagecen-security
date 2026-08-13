@@ -37,6 +37,26 @@ services:
       retries: 10
       start_period: 5s
 
+  worker:
+    build:
+      context: ./backend
+    command: ["python", "-m", "app.worker.runner"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nagecen_security}:${POSTGRES_PASSWORD:-change-me-for-local-development}@database:5432/${POSTGRES_DB:-nagecen_security}
+      ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:stable
+      WORKER_IMAGE: nagecen-security-backend:latest
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   database:
     image: postgres:17-alpine
     ports:

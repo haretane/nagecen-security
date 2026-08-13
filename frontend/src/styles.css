@@ -325,6 +325,140 @@ h1 {
   background: #fbeceb;
 }
 
+.scan-start-panel {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid #dfe2e3;
+}
+
+.scan-start-panel h2 {
+  margin: 6px 0 8px;
+  font-size: 18px;
+}
+
+.scan-start-panel > p {
+  margin: 0;
+  color: #687075;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.scan-caution {
+  margin-top: 16px;
+  padding: 14px 16px;
+  color: #625227;
+  border: 1px solid #e3d39d;
+  border-radius: 9px;
+  background: #fff9e8;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.scan-caution strong {
+  display: block;
+}
+
+.scan-caution ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+.authorization-check {
+  margin-top: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #3f464a;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.authorization-check input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: #e86e1a;
+}
+
+.scan-start-button {
+  min-height: 46px;
+  margin-top: 16px;
+  padding: 0 20px;
+  color: #fff;
+  border: 0;
+  border-radius: 9px;
+  background: #e86e1a;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.scan-start-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.scan-progress {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #d7dadd;
+  border-radius: 10px;
+  background: #f4f5f5;
+}
+
+.scan-progress > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.scan-status-label {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #e4e7e8;
+  font: 700 10px/1 monospace;
+  text-transform: uppercase;
+}
+
+.scan-progress p {
+  margin: 8px 0 0;
+  color: #667075;
+  font-size: 13px;
+}
+
+.scan-completed {
+  border-color: #b8dbc8;
+  background: #edf8f2;
+}
+
+.scan-failed {
+  border-color: #e5bebb;
+  background: #fbeeed;
+}
+
+.scan-progress dl {
+  margin: 14px 0 0;
+  display: flex;
+  gap: 24px;
+}
+
+.scan-progress dl div {
+  display: flex;
+  gap: 8px;
+}
+
+.scan-progress dt {
+  color: #697176;
+  font-size: 12px;
+}
+
+.scan-progress dd {
+  margin: 0;
+  font-weight: 800;
+}
+
 .status-card {
   margin-top: 18px;
   padding: 20px 22px;

@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.url_validation import router as url_validation_router
 from app.api.routes.site_verification import router as site_verification_router
+from app.api.routes.scan_jobs import router as scan_jobs_router
 
 
 def get_allowed_origins() -> list[str]:
@@ -32,6 +33,7 @@ app.add_middleware(
 
 app.include_router(url_validation_router)
 app.include_router(site_verification_router)
+app.include_router(scan_jobs_router)
 
 
 @app.get("/health", tags=["system"])

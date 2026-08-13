@@ -9,6 +9,9 @@ function App() {
   const [verification, setVerification] = useState(null)
   const [verificationStatus, setVerificationStatus] = useState({ state: 'idle', message: '' })
   const [copyLabel, setCopyLabel] = useState('コピー')
+  const [authorizationConfirmed, setAuthorizationConfirmed] = useState(false)
+  const [scanJob, setScanJob] = useState(null)
+  const [scanMessage, setScanMessage] = useState('')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -43,10 +46,35 @@ function App() {
     return () => controller.abort()
   }, [])
 
+  useEffect(() => {
+    if (!scanJob || !['queued', 'running'].includes(scanJob.status)) return undefined
+
+    const intervalId = window.setInterval(async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/scan-jobs/${scanJob.id}`)
+        if (!response.ok) return
+        const updatedJob = await response.json()
+        setScanJob(updatedJob)
+        if (updatedJob.status === 'completed') {
+          setScanMessage('パッシブ診断が完了しました。')
+        } else if (updatedJob.status === 'failed') {
+          setScanMessage(updatedJob.error_message ?? '診断処理に失敗しました。')
+        }
+      } catch {
+        // 一時的な通信失敗ではジョブを止めず、次回の確認を待ちます。
+      }
+    }, 3000)
+
+    return () => window.clearInterval(intervalId)
+  }, [scanJob])
+
   async function handleUrlValidation(event) {
     event.preventDefault()
     setVerification(null)
     setVerificationStatus({ state: 'idle', message: '' })
+    setAuthorizationConfirmed(false)
+    setScanJob(null)
+    setScanMessage('')
     setValidation({ state: 'loading', message: 'URLの安全性を確認しています…' })
 
     try {
@@ -150,6 +178,32 @@ function App() {
     }
   }
 
+  async function startPassiveScan() {
+    if (!verification || !authorizationConfirmed) return
+
+    setScanMessage('診断ジョブを登録しています…')
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/scan-jobs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          site_verification_id: verification.verification_id,
+          level_id: 'basic',
+          authorization_confirmed: authorizationConfirmed,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        setScanMessage(data.detail?.message ?? '診断ジョブを登録できませんでした。')
+        return
+      }
+      setScanJob(data)
+      setScanMessage('診断の開始を待っています…')
+    } catch {
+      setScanMessage('診断ジョブを登録できませんでした。')
+    }
+  }
+
   return (
     <div className="app-shell">
       <header className="site-header">
@@ -189,6 +243,9 @@ function App() {
                   setValidation({ state: 'idle', message: '' })
                   setVerification(null)
                   setVerificationStatus({ state: 'idle', message: '' })
+                  setAuthorizationConfirmed(false)
+                  setScanJob(null)
+                  setScanMessage('')
                 }}
                 maxLength={2048}
                 required
@@ -244,6 +301,58 @@ function App() {
               >
                 {verificationStatus.message}
               </p>
+            )}
+
+            {verificationStatus.state === 'success' && (
+              <section className="scan-start-panel" aria-labelledby="scan-start-title">
+                <div className="step-label">STEP 3</div>
+                <h2 id="scan-start-title">Lv.1 パッシブ診断</h2>
+                <p>
+                  ページを巡回し、通信内容からヘッダーやCookieなどを受動的に確認します。
+                  この段階ではXSSなどの攻撃用入力は送りません。
+                </p>
+                <div className="scan-caution">
+                  <strong>開始前にご確認ください</strong>
+                  <ul>
+                    <li>可能であれば診断専用環境を使用してください。</li>
+                    <li>巡回によりアクセスログやセッションが作成される場合があります。</li>
+                    <li>診断中は対象サイトへ通常より多くのアクセスが発生します。</li>
+                  </ul>
+                </div>
+                <label className="authorization-check">
+                  <input
+                    type="checkbox"
+                    checked={authorizationConfirmed}
+                    onChange={(event) => setAuthorizationConfirmed(event.target.checked)}
+                    disabled={scanJob !== null}
+                  />
+                  <span>私はこのサイトを所有しているか、診断を実行する明示的な許可を得ています。</span>
+                </label>
+                <button
+                  className="scan-start-button"
+                  type="button"
+                  onClick={startPassiveScan}
+                  disabled={!authorizationConfirmed || scanJob !== null}
+                >
+                  Lv.1 パッシブ診断を開始
+                </button>
+              </section>
+            )}
+
+            {scanJob && (
+              <section className={`scan-progress scan-${scanJob.status}`} aria-live="polite">
+                <div>
+                  <strong>{scanJob.level_display_name} 診断</strong>
+                  <span className="scan-status-label">{scanJob.status}</span>
+                </div>
+                <p>{scanMessage}</p>
+                {scanJob.status === 'completed' && (
+                  <dl>
+                    <div><dt>巡回・検出URL数</dt><dd>{scanJob.crawled_url_count}</dd></div>
+                    <div><dt>検出件数</dt><dd>{scanJob.alert_count}</dd></div>
+                  </dl>
+                )}
+              </section>
             )}
           </form>
 
