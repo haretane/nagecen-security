@@ -4,6 +4,7 @@ import pytest
 
 from app.security import safe_http_client
 from app.security.url_validator import UrlValidationError, ValidatedUrl, validate_public_url
+from app.security.url_scope import UrlScope
 
 
 def fake_public_validation(url: str) -> ValidatedUrl:
@@ -87,6 +88,38 @@ def test_rejects_different_public_host_before_request(monkeypatch: pytest.Monkey
 
     assert captured.value.code == "host_changed"
     assert requested_urls == ["https://example.com/"]
+
+
+def test_rejects_redirect_outside_product_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    responses = iter(
+        [(302, {"Location": "/app-a/"}, b"")]
+    )
+
+    async def fake_request(_validated):
+        return next(responses)
+
+    def scoped_validation(url: str) -> ValidatedUrl:
+        path = "/app-a/" if url.endswith("/app-a/") else "/nagecen/"
+        return ValidatedUrl(
+            normalized_url=f"https://example.com{path}",
+            scheme="https",
+            hostname="example.com",
+            port=443,
+            resolved_ips=("93.184.216.34",),
+        )
+
+    monkeypatch.setattr(safe_http_client, "_request_once", fake_request)
+    monkeypatch.setattr(safe_http_client, "validate_public_url", scoped_validation)
+
+    with pytest.raises(safe_http_client.SafeHttpError) as captured:
+        asyncio.run(
+            safe_http_client.fetch_public_html(
+                "https://example.com/nagecen/",
+                allowed_scope=UrlScope("https://example.com", "/nagecen/"),
+            )
+        )
+
+    assert captured.value.code == "scope_changed"
 
 
 def test_rejects_oversized_html(monkeypatch: pytest.MonkeyPatch) -> None:

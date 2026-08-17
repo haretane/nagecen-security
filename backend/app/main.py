@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 
 import psycopg
 from fastapi import FastAPI, HTTPException
@@ -7,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.url_validation import router as url_validation_router
 from app.api.routes.site_verification import router as site_verification_router
 from app.api.routes.scan_jobs import router as scan_jobs_router
+from app.integrations.nagecen import router as nagecen_integration_router
+from app.security.runtime_config import validate_production_config
 
 
 def get_allowed_origins() -> list[str]:
@@ -17,16 +20,23 @@ def get_allowed_origins() -> list[str]:
     return [origin.strip() for origin in configured_origins.split(",") if origin.strip()]
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    validate_production_config(component="backend")
+    yield
+
+
 app = FastAPI(
     title="NAGeCen Security API",
     description="NAGeCen SecurityのバックエンドAPIです。",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_allowed_origins(),
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
@@ -34,6 +44,7 @@ app.add_middleware(
 app.include_router(url_validation_router)
 app.include_router(site_verification_router)
 app.include_router(scan_jobs_router)
+app.include_router(nagecen_integration_router)
 
 
 @app.get("/health", tags=["system"])

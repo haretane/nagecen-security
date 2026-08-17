@@ -7,6 +7,7 @@ import aiohttp
 from aiohttp.abc import AbstractResolver
 
 from app.security.url_validator import ValidatedUrl, validate_public_url
+from app.security.url_scope import UrlScope, path_is_in_scope
 
 
 MAX_REDIRECTS = 5
@@ -91,7 +92,11 @@ async def _request_once(validated: ValidatedUrl) -> tuple[int, dict[str, str], b
         ) from error
 
 
-async def fetch_public_html(url: str, allowed_host: str | None = None) -> SafeHttpResponse:
+async def fetch_public_html(
+    url: str,
+    allowed_host: str | None = None,
+    allowed_scope: UrlScope | None = None,
+) -> SafeHttpResponse:
     """公開URLからHTMLを取得し、リダイレクト先も毎回検証します。"""
 
     current_url = url
@@ -102,6 +107,14 @@ async def fetch_public_html(url: str, allowed_host: str | None = None) -> SafeHt
             raise SafeHttpError(
                 "host_changed",
                 "所有確認中に別のホストへ移動することはできません。",
+            )
+        if allowed_scope is not None and not path_is_in_scope(
+            validated.normalized_url,
+            allowed_scope,
+        ):
+            raise SafeHttpError(
+                "scope_changed",
+                "所有確認中に別のプロダクト範囲へ移動することはできません。",
             )
         status, headers, body = await _request_once(validated)
 
