@@ -1,0 +1,27 @@
+# KAGOYA VPSなどの本番環境で使用するReact/Caddy用イメージです。
+# 1段目でReactを静的ファイルへ変換します。
+FROM node:22-alpine AS build
+
+WORKDIR /app
+
+COPY package*.json ./
+ARG TARGETARCH
+RUN npm ci \
+    && if [ "$TARGETARCH" = "amd64" ]; then \
+        npm install --no-save --package-lock=false \
+            @rolldown/binding-linux-x64-musl@1.2.4 \
+            lightningcss-linux-x64-musl@1.33.0; \
+    fi
+
+COPY . .
+
+# 空文字の場合、ブラウザは現在のドメインへAPIリクエストを送ります。
+ARG VITE_API_BASE_URL=""
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+
+RUN npm run build
+
+# 2段目ではVite開発サーバーを使わず、Caddyから静的ファイルを配信します。
+FROM caddy:2-alpine
+
+COPY --from=build /app/dist /srv

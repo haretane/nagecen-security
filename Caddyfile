@@ -1,0 +1,28 @@
+# KAGOYA VPSの本番公開専用設定です。
+# PUBLIC_DOMAINを省略した場合は、現在のMyDNSドメインを使用します。
+{$PUBLIC_DOMAIN:nagecen-security.ucu4-lab.mydns.jp} {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+
+	# FastAPIの公開APIとDB接続確認だけをバックエンドへ渡します。
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle /health {
+		reverse_proxy backend:8000
+	}
+
+	# 上記以外はReactの静的ファイルを配信します。
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
