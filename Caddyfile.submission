@@ -1,0 +1,21 @@
+{$PUBLIC_DOMAIN:nagecen-security.ucu4-lab.mydns.jp} {
+	encode zstd gzip
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+	# 提出中は実診断・認証連携のAPIを外部から利用させません。
+	handle /api/* {
+		respond "Service temporarily paused" 503
+	}
+	handle /health {
+		reverse_proxy backend:8000
+	}
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

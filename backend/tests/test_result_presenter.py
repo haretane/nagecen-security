@@ -7,6 +7,18 @@ from app.scans.result_presenter import (
 )
 
 
+def test_confidence_is_reported_without_inventing_a_value():
+    findings = present_findings({"site": [{"alerts": [
+        {"name": "One", "confidence": "1"},
+        {"name": "Two", "confidence": "2"},
+        {"name": "Three", "confidence": "3"},
+        {"name": "Confirmed", "confidence": "4"},
+        {"name": "Missing"},
+    ]}]})
+    labels = {item["technical_title"]: item["confidence_label"] for item in findings}
+    assert labels == {"One": "低", "Two": "中", "Three": "高", "Confirmed": "高", "Missing": "不明"}
+
+
 def test_presents_and_sorts_findings_for_beginners() -> None:
     report = {"site": [{"alerts": [
         {

@@ -1,0 +1,9 @@
+# 本番構成に重ねる提出用の静的配信設定。DB・秘密値は変更しません。
+# Workerは別途停止し、restart=no に変更してから配信を切り替えます。
+services:
+  web:
+    volumes:
+      - ./Caddyfile.submission:/etc/caddy/Caddyfile:ro
+      - ./submission-public:/srv:ro
+  worker:
+    restart: "no"

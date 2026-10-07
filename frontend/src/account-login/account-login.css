@@ -1,0 +1,48 @@
+.security-landing .account-header-nav,
+.account-menu { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.account-menu-button,
+.account-menu-link { min-height: 44px; padding: 9px 15px; border: 1px solid #c45112; border-radius: 8px; background: #fff; color: #a9450d; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.account-menu-button:hover,
+.account-menu-link:hover { background: #fff3e8; }
+.account-menu-button:disabled { opacity: .6; cursor: wait; }
+.account-login-status { color: #606975; font-size: 13px; }
+.account-main { padding-block: 56px; }
+.account-page .account-main { display: block; }
+.account-card { max-width: 680px; margin-inline: auto; padding: 40px; border: 1px solid #e3e7ec; border-radius: 18px; background: #fff; box-shadow: 0 10px 35px #252a3108; }
+.account-page { background: #fafaf9; }
+.account-eyebrow { margin: 0 0 12px; color: #a9450d; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+.security-landing .account-card h1 { font-size: 28px; line-height: 1.5; letter-spacing: 0; }
+.account-description { margin: 16px 0 0; color: #252a31; font-size: 16px; line-height: 1.8; }
+.account-login-explanation { margin-top: 24px; padding: 18px 20px; border-radius: 10px; background: #fff3e8; }
+.account-login-explanation p { margin: 0; color: #454b54; font-size: 14px; line-height: 1.8; }
+.account-login-explanation p + p { margin-top: 8px; }
+.account-primary { display: block; width: 100%; min-height: 52px; margin-top: 24px; padding: 12px 16px; border: 1px solid #c45112; border-radius: 10px; background: #c45112; color: #fff; font: inherit; font-weight: 700; cursor: pointer; line-height: 1.5; }
+.account-primary:hover { background: #ab450c; }
+.account-primary:disabled { background: #ecece9; border-color: #d8d9d5; color: #606975; cursor: not-allowed; }
+.account-menu-button:focus-visible,
+.account-primary:focus-visible,
+.account-preview-controls select:focus-visible { outline: 2px solid #c45112; outline-offset: 4px; }
+.account-help,
+.account-footnote { margin-top: 18px; color: #606975; font-size: 13px; line-height: 1.8; }
+.account-footnote { padding-top: 22px; margin-top: 28px; border-top: 1px solid #e3e7ec; }
+.account-feedback { margin: 20px 0 0; padding: 14px 16px; border: 1px solid #d99162; border-radius: 10px; background: #fff3e8; color: #8e3b0c; line-height: 1.8; font-size: 14px; overflow-wrap: anywhere; }
+.account-back-link { display: inline-flex; align-items: center; min-height: 44px; margin-top: 12px; color: #606975; font-size: 14px; text-underline-offset: 4px; }
+.account-preview-controls { padding: 14px max(20px, calc((100% - 1120px) / 2)); border-bottom: 1px solid #d99162; background: #fff3e8; color: #454b54; }
+.account-preview-controls label { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 14px; }
+.account-preview-controls select { min-height: 44px; padding: 8px 12px; max-width: 100%; border: 1px solid #b4b9bf; border-radius: 6px; background: #fff; color: #252a31; font: inherit; }
+.account-preview-controls p { margin: 7px 0 0; font-size: 12px; line-height: 1.7; }
+.security-landing .landing-start-link.account-start-button { border: 0; cursor: pointer; font-family: inherit; }
+.security-landing .landing-start-link.account-start-button:disabled { opacity: .7; cursor: wait; }
+.account-banner { width: min(1120px, calc(100% - 64px)); margin: 20px auto; }
+.app-shell .account-menu { justify-content: flex-end; }
+@media (max-width: 700px) {
+  .account-main { padding-block: 28px; }
+  .account-card { padding: 24px 20px; border-radius: 14px; }
+  .security-landing .account-card h1 { font-size: 23px; }
+  .security-landing .account-header-nav { justify-content: flex-end; gap: 4px 10px; }
+  .account-menu { gap: 6px; }
+  .account-menu-button, .account-menu-link { font-size: 13px; padding: 8px 10px; }
+  .account-login-status { font-size: 12px; }
+  .security-landing .landing-header-inner:has(.account-menu) { flex-wrap: wrap; padding-block: 12px; }
+  .account-banner { width: calc(100% - 40px); }
+}

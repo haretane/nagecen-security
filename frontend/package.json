@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "build:demo": "VITE_SECURITY_DEMO_ENABLED=true VITE_SECURITY_SUBMISSION_MODE=true VITE_SECURITY_ACCOUNT_LOGIN_ENABLED=true VITE_SECURITY_DIAGNOSTICS_PAUSED=true vite build --outDir dist-demo",
+    "preview": "vite preview",
+    "test:account-login": "node --test tests/account-login.test.mjs",
+    "test:account-login:browser": "node tests/account-login.browser-check.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^6.0.3",

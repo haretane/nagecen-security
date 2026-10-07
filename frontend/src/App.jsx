@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { diagnosticRequest } from './account-login/client.mjs'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 const LAST_SCAN_JOB_KEY = 'nagecen_security_last_scan_job_id'
@@ -27,7 +28,10 @@ const SERVICE_FEATURE_OPTIONS = [
   { id: 'unknown', label: 'よく分からない' },
 ]
 
-function App() {
+function App({ accountMode = false, onSessionExpired, accountMenu = null }) {
+  const diagnosticFetch = useCallback((url, options) => diagnosticRequest(
+    globalThis.fetch, accountMode, onSessionExpired, url, options,
+  ), [accountMode, onSessionExpired])
   const [health, setHealth] = useState({ state: 'loading', message: '接続を確認しています…' })
   const [targetUrl, setTargetUrl] = useState('')
   const [validation, setValidation] = useState({ state: 'idle', message: '' })
@@ -121,56 +125,21 @@ function App() {
 
   useEffect(() => {
     const controller = new AbortController()
-    fetch(`${API_BASE_URL}/api/scan-jobs/levels`, { signal: controller.signal })
+    diagnosticFetch(`${API_BASE_URL}/api/scan-jobs/levels`, { signal: controller.signal })
       .then((response) => response.ok ? response.json() : [])
       .then(setScanLevels)
       .catch((error) => {
         if (error.name !== 'AbortError') setScanLevels([])
       })
     return () => controller.abort()
-  }, [])
-
-  useEffect(() => {
-    // NAGeCen連携では、別のプロダクトで行った過去の診断結果を表示しない。
-    if (window.location.pathname === '/integrations/nagecen') return
-    const lastJobId = window.localStorage.getItem(LAST_SCAN_JOB_KEY)
-    if (!lastJobId) return
-
-    const controller = new AbortController()
-    async function restoreLastScan() {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/scan-jobs/${lastJobId}`, {
-          signal: controller.signal,
-        })
-        if (!response.ok) {
-          window.localStorage.removeItem(LAST_SCAN_JOB_KEY)
-          return
-        }
-        const job = await response.json()
-        setScanJob(job)
-        setScanMessage(
-          job.status === 'completed'
-            ? `前回の${job.level_display_name}診断結果を表示しています。`
-            : job.status === 'failed'
-              ? (job.error_message ?? '前回の診断は失敗しました。')
-              : '前回開始した診断の状態を確認しています…',
-        )
-      } catch (error) {
-        if (error.name !== 'AbortError') {
-          setScanMessage('前回の診断結果を読み込めませんでした。')
-        }
-      }
-    }
-    restoreLastScan()
-    return () => controller.abort()
-  }, [])
+  }, [diagnosticFetch])
 
   useEffect(() => {
     if (!scanJob || !['queued', 'running'].includes(scanJob.status)) return undefined
 
     const intervalId = window.setInterval(async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/scan-jobs/${scanJob.id}`)
+        const response = await diagnosticFetch(`${API_BASE_URL}/api/scan-jobs/${scanJob.id}`)
         if (!response.ok) return
         const updatedJob = await response.json()
         setScanJob(updatedJob)
@@ -187,7 +156,7 @@ function App() {
     }, 3000)
 
     return () => window.clearInterval(intervalId)
-  }, [scanJob])
+  }, [scanJob, diagnosticFetch])
 
   async function handleUrlValidation(event) {
     event.preventDefault()
@@ -206,7 +175,7 @@ function App() {
     setValidation({ state: 'loading', message: 'URLの安全性を確認しています…' })
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/url-validation`, {
+      const response = await diagnosticFetch(`${API_BASE_URL}/api/url-validation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: targetUrl }),
@@ -236,7 +205,7 @@ function App() {
     setVerificationStatus({ state: 'loading', message: '確認キーを発行しています…' })
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/site-verifications`, {
+      const response = await diagnosticFetch(`${API_BASE_URL}/api/site-verifications`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: targetUrl }),
@@ -280,7 +249,7 @@ function App() {
     setVerificationStatus({ state: 'loading', message: '対象ページのmetaタグを確認しています…' })
 
     try {
-      const response = await fetch(
+      const response = await diagnosticFetch(
         `${API_BASE_URL}/api/site-verifications/${verification.verification_id}/confirm`,
         {
           method: 'POST',
@@ -321,7 +290,7 @@ function App() {
 
     setScanMessage('診断ジョブを登録しています…')
     try {
-      const response = await fetch(`${API_BASE_URL}/api/scan-jobs`, {
+      const response = await diagnosticFetch(`${API_BASE_URL}/api/scan-jobs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -346,7 +315,7 @@ function App() {
       }
       setScanJob(data)
       setLoginPassword('')
-      window.localStorage.setItem(LAST_SCAN_JOB_KEY, data.id)
+      if (!accountMode) window.localStorage.setItem(LAST_SCAN_JOB_KEY, data.id)
       setScanMessage('診断の開始を待っています…')
     } catch {
       setScanMessage('診断ジョブを登録できませんでした。')
@@ -357,8 +326,9 @@ function App() {
     if (!scanJob || scanJob.status !== 'queued') return
     setScanMessage('診断の中止を確認しています…')
     try {
-      const response = await fetch(`${API_BASE_URL}/api/scan-jobs/${scanJob.id}/cancel`, {
+      const response = await diagnosticFetch(`${API_BASE_URL}/api/scan-jobs/${scanJob.id}/cancel`, {
         method: 'POST',
+        ...(accountMode ? { headers: { 'Content-Type': 'application/json' }, body: '{}' } : {}),
       })
       const data = await response.json()
       if (!response.ok) {
@@ -367,7 +337,7 @@ function App() {
       }
       setScanJob(data)
       setScanMessage('診断を開始前に中止しました。')
-      window.localStorage.removeItem(LAST_SCAN_JOB_KEY)
+      if (!accountMode) window.localStorage.removeItem(LAST_SCAN_JOB_KEY)
     } catch {
       setScanMessage('診断を中止できませんでした。')
     }
@@ -410,14 +380,14 @@ function App() {
     <div className="app-shell">
       <header className="site-header">
         <div className="site-header-inner">
-          <a className="brand" href="/" aria-label="NAGeCen Security ホーム">
+          <a className="brand" href="/" aria-label="NAGeCen 簡易セキュリティ診断 ホーム">
             <span className="brand-mark" aria-hidden="true">N</span>
             <span>
               <strong>NAGeCen</strong>
-              <small>Security</small>
+              <small>簡易セキュリティ診断</small>
             </span>
           </a>
-          <span className="mvp-badge">MVP DEVELOPMENT</span>
+          {accountMenu ?? <span className="mvp-badge">MVP DEVELOPMENT</span>}
         </div>
       </header>
 
@@ -430,10 +400,18 @@ function App() {
           </section>
         )}
         <section className="hero">
-          <p className="eyebrow">SECURITY CHECK FOR BEGINNERS</p>
-          <h1>つくったサービスに、<br />安心して公開するための確認を。</h1>
+          <p className="eyebrow">NAGeCen 簡易セキュリティ診断</p>
+          <h1>Webサービスの<br />簡易セキュリティ診断</h1>
           <p className="lead">
-            NAGeCen Securityは、Webサービスの安全性を初心者にも分かりやすく確認するための付随サービスです。
+            NAGeCen 簡易セキュリティ診断は、Webサービスを対象とした簡易セキュリティ診断サービスです。
+            対象ページを自動で巡回し、セキュリティ上の懸念や設定の改善候補を表示します。
+          </p>
+          <p className="field-help">
+            診断結果は、実際に診断したURLと確認できた範囲に対する参考情報です。
+            サービスの安全性を保証するものでも、NAGeCenによる公開承認でもありません。
+          </p>
+          <p className="field-help">
+            ※この診断は、NAGeCenへのプロダクト投稿に必須ではありません。NAGeCenでは診断の利用や結果にかかわらず投稿できます。
           </p>
 
           <form className="url-check-card" onSubmit={handleUrlValidation}>
@@ -442,7 +420,7 @@ function App() {
                 <strong>今回確認するプロダクト</strong>
                 {handoffContext ? (
                   <>
-                    <p>NAGeCenの登録画面で入力されたURLを受け取りました。</p>
+                    <p>NAGeCenから診断対象のURLを引き継ぎました。</p>
                     <code>{handoffContext.normalized_url}</code>
                     <small>安全のため、この画面では別のURLへ変更できません。</small>
                   </>
@@ -453,7 +431,7 @@ function App() {
             ) : (
               <>
                 <label htmlFor="target-url">確認したいWebサービスのURL</label>
-                <p className="field-help">公開中のトップページURLを、https://から入力してください。</p>
+                <p className="field-help">インターネットからアクセスできる対象ページのURLを入力してください。</p>
                 <div className="url-input-row">
                   <input
                     id="target-url"
@@ -486,6 +464,15 @@ function App() {
                 </div>
               </>
             )}
+            <div className="field-help">
+              <strong>{accountMode
+                ? '本番環境（URL）ではなく、テスト環境（テストURL）での診断をお願いします。'
+                : 'テスト環境のURLでの診断をおすすめします。'}</strong>
+              {accountMode && <p>アカウントのログインとは別に、確認タグの設置によって診断用サイトの管理権限を確認します。作者本人の身元確認ではありません。</p>}
+              <p>自動巡回や、診断レベルに応じたテスト入力によって、サイトの動作やデータに影響する場合があります。</p>
+              <p>localhostや内部ネットワークのURLは診断できません。テストURLの診断結果は、本番URLの結果としては扱えません。</p>
+              {isNagecenHandoff && <p>テスト環境など別のURLを診断する場合は、NAGeCenへ戻って対象URLを見直してください。</p>}
+            </div>
             {validation.state !== 'idle' && !isNagecenHandoff && (
               <p
                 className={`validation-message validation-${validation.state}`}
@@ -511,7 +498,7 @@ function App() {
                   <p>
                     このプロダクトを自分で管理しているか、管理者から掲載・診断の許可を
                     受けていることを確認する（本人以外の所有物でないかを確認する）ためです。開発コードの中へ一時的な確認用タグを
-                    設置し、NAGeCen Securityがそのタグを見つけられるか確認します。
+                    設置し、NAGeCen 簡易セキュリティ診断がそのタグを見つけられるか確認します。
                   </p>
                   <p>
                     このタグが画面に表示されたり、サイトの機能を変更したりすることはありません。
@@ -1108,7 +1095,7 @@ function App() {
         </section>
       </main>
 
-      <footer>NAGeCen Security — a companion service for NAGeCen</footer>
+      <footer>NAGeCen 簡易セキュリティ診断 — a companion service for NAGeCen</footer>
     </div>
   )
 }

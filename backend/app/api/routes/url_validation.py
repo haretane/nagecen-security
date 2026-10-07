@@ -3,10 +3,12 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from app.account_login.access import AccountDiagnosticRoute
+
 from app.security.url_validator import UrlValidationError, validate_public_url
 
 
-router = APIRouter(prefix="/api/url-validation", tags=["url-validation"])
+router = APIRouter(prefix="/api/url-validation", tags=["url-validation"], route_class=AccountDiagnosticRoute)
 
 
 class UrlValidationRequest(BaseModel):

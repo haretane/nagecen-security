@@ -7,6 +7,10 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException
 from psycopg import Connection
 from pydantic import BaseModel, Field
 
+from app.account_login.access import (
+    AccountContext, AccountDiagnosticRoute, get_account_context, owner_filter, visible_record,
+)
+
 from app.database import get_connection
 from app.security.safe_http_client import SafeHttpError, fetch_public_html
 from app.security.url_validator import UrlValidationError, validate_public_url
@@ -19,7 +23,7 @@ from app.integrations.nagecen import SESSION_COOKIE_NAME, get_handoff_from_sessi
 from app.integrations.webhook import enqueue_webhook, verified_ownership, webhook_base_payload
 
 
-router = APIRouter(prefix="/api/site-verifications", tags=["site-verification"])
+router = APIRouter(prefix="/api/site-verifications", tags=["site-verification"], route_class=AccountDiagnosticRoute)
 TOKEN_LIFETIME = timedelta(minutes=30)
 MAX_CHALLENGES_PER_HOST_PER_HOUR = 5
 MAX_CHALLENGES_GLOBAL_PER_HOUR = 100
@@ -64,6 +68,7 @@ def create_verification(
     request: VerificationCreateRequest,
     connection: Connection = Depends(get_connection),
     nagecen_security_handoff_session: str | None = Cookie(default=None),
+    account: AccountContext | None = Depends(get_account_context),
 ) -> VerificationCreateResponse:
     try:
         validated = validate_public_url(request.url)
@@ -78,7 +83,9 @@ def create_verification(
     created_at = datetime.now(UTC)
     expires_at = created_at + TOKEN_LIFETIME
     handoff_id = None
-    if nagecen_security_handoff_session:
+    # Product handoff cookies are not account identities. Independent account
+    # diagnostics must not silently adopt the old product/owner association.
+    if account is None and nagecen_security_handoff_session:
         handoff = get_handoff_from_session(connection, nagecen_security_handoff_session)
         if validated.normalized_url != handoff["normalized_url"]:
             raise HTTPException(
@@ -107,11 +114,11 @@ def create_verification(
                 detail={"code": "verification_rate_limited", "message": "このサイトの確認キーは短時間に複数回発行されています。しばらく待ってからお試しください。"},
             )
         cursor.execute(
-            """
+            f"""
             INSERT INTO verification_challenges (
                 id, target_url, target_host, token_hash, created_at, expires_at,
-                nagecen_handoff_id
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                nagecen_handoff_id{', account_id' if account else ''}
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s{', %s' if account else ''})
             """,
             (
                 verification_id,
@@ -121,7 +128,7 @@ def create_verification(
                 created_at,
                 expires_at,
                 handoff_id,
-            ),
+            ) + ((account.id,) if account else ()),
         )
     meta_tag = f'<meta name="{VERIFICATION_META_NAME}" content="{token}">'
     return VerificationCreateResponse(
@@ -140,19 +147,20 @@ async def confirm_verification(
     verification_id: uuid.UUID,
     request: VerificationConfirmRequest,
     connection: Connection = Depends(get_connection),
+    account: AccountContext | None = Depends(get_account_context),
 ) -> VerificationConfirmResponse:
+    predicate, owner_params = owner_filter(account)
     with connection.cursor() as cursor:
         cursor.execute(
-            """
-            SELECT id, target_url, target_host, token_hash, expires_at,
-                   verified_at, used_at, nagecen_handoff_id, confirmation_attempt_count
+            f"""
+            SELECT *
             FROM verification_challenges
-            WHERE id = %s
+            WHERE id = %s{predicate}
             FOR UPDATE
             """,
-            (verification_id,),
+            (verification_id,) + owner_params,
         )
-        verification = cursor.fetchone()
+        verification = visible_record(cursor.fetchone(), account)
 
     if verification is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "確認情報が見つかりません。"})
@@ -244,14 +252,14 @@ async def confirm_verification(
             (verified_at, verified_at, verification_id),
         )
         cursor.execute(
-            """
+            f"""
             INSERT INTO verified_targets (
                 id, verification_challenge_id, verified_url,
                 verified_origin, verified_base_path, source, method,
                 status, verified_at, last_revalidated_at, created_at,
-                nagecen_handoff_id
+                nagecen_handoff_id{', account_id' if account else ''}
             ) VALUES (%s, %s, %s, %s, %s, 'security', 'meta_tag',
-                      'active', %s, %s, %s, %s)
+                      'active', %s, %s, %s, %s{', %s' if account else ''})
             """,
             (
                 verified_target_id,
@@ -263,7 +271,7 @@ async def confirm_verification(
                 verified_at,
                 verified_at,
                 verification["nagecen_handoff_id"],
-            ),
+            ) + ((account.id,) if account else ()),
         )
         if verification["nagecen_handoff_id"] is not None:
             cursor.execute(

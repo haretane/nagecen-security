@@ -106,6 +106,18 @@ curl https://nagecen-security.ucu4-lab.mydns.jp/health
 
 ## 更新時の注意
 
+### 2026-10-06 提出用の配信
+
+- `frontend` で `npm run build:demo` を実行し、`dist-demo/` の内容をVPSの `/opt/nagecen-security/submission-public/` へ配置します。
+- `compose.production.yaml` に `compose.submission.yaml` を重ね、webだけを `up -d --no-deps --no-build web` で切り替えます。
+- `Caddyfile.submission` は `/api/*` を503にし、実診断・認証連携を公開側から停止します。`/health` は維持します。
+- Workerを停止し、既存コンテナのrestart policyも `no` に変更しています。DB・バックエンド・共有鍵は変更していません。
+- 提出用トップはログインせず既存の一時停止モーダルを表示します。プレビューは実通信を行いません。
+- 以前の公開ファイルと配信設定はVPSの `/opt/nagecen-security/backups/submission-20261006/` に保存しています。
+- 通常運用へ戻す場合は別途確認のうえ、overrideなしでwebを再作成します。WorkerやAPIは利用条件の確認前に再開しないでください。
+
+### 通常更新
+
 - ローカル開発では引き続き `docker compose up` を使用する
 - 本番操作では必ず `-f compose.production.yaml` を付ける
 - データベースのDockerボリュームを削除しない

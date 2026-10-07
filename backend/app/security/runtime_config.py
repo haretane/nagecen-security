@@ -13,6 +13,11 @@ def validate_production_config(
         return
 
     errors: list[str] = []
+    if any(values.get(name) for name in (
+        "LOCAL_VERIFICATION_REUSE_TOKEN", "LOCAL_VERIFICATION_REUSE_URL",
+        "LOCAL_VERIFICATION_REUSE_UNTIL",
+    )):
+        errors.append("local verification reuse must be disabled")
     secret_names = {
         "backend": ("NAGECEN_TO_SECURITY_HMAC_SECRET",),
         "worker": ("SECURITY_TO_NAGECEN_HMAC_SECRET",),

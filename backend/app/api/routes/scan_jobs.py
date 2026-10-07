@@ -8,6 +8,10 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 from typing import Literal
 
+from app.account_login.access import (
+    AccountContext, AccountDiagnosticRoute, get_account_context, owner_filter, visible_record,
+)
+
 from app.database import get_connection
 from app.scans.levels import SCAN_LEVELS, get_scan_level
 from app.scans.result_presenter import (
@@ -31,7 +35,7 @@ from app.security.url_scope import UrlScope, path_is_in_scope
 from app.security.url_validator import UrlValidationError, validate_public_url
 
 
-router = APIRouter(prefix="/api/scan-jobs", tags=["scan-jobs"])
+router = APIRouter(prefix="/api/scan-jobs", tags=["scan-jobs"], route_class=AccountDiagnosticRoute)
 MAX_PENDING_SCAN_JOBS = 10
 
 
@@ -228,6 +232,7 @@ def create_scan_job(
     request: ScanJobCreateRequest,
     connection: Connection = Depends(get_connection),
     secret_store: AuthenticationSecretStore = Depends(create_authentication_secret_store),
+    account: AccountContext | None = Depends(get_account_context),
 ) -> ScanJobResponse:
     level = get_scan_level(request.level_id)
     if level is None:
@@ -263,17 +268,17 @@ def create_scan_job(
             detail={"code": "data_change_acknowledgement_required", "message": "データ変更の可能性について確認が必要です。"},
         )
 
+    predicate, owner_params = owner_filter(account)
     with connection.cursor() as cursor:
         cursor.execute(
-            """
-            SELECT id, verified_url, verified_origin, verified_base_path,
-                   verified_at, valid_until, status, nagecen_handoff_id
+            f"""
+            SELECT *
             FROM verified_targets
-            WHERE id = %s
+            WHERE id = %s{predicate}
             """,
-            (request.verified_target_id,),
+            (request.verified_target_id,) + owner_params,
         )
-        verification = cursor.fetchone()
+        verification = visible_record(cursor.fetchone(), account)
 
     if (
         verification is None
@@ -345,15 +350,15 @@ def create_scan_job(
             secret_store.put(job_id, form_secret)
         with connection.cursor() as cursor:
             cursor.execute(
-                """
+                f"""
                 INSERT INTO scan_jobs (
                     id, verified_target_id, level_id, status, target_url,
                     target_host, target_origin, target_base_path,
                     consent_confirmed_at, active_scan_consent_at,
                     data_change_risk_acknowledged_at, created_at,
                     authentication_type, authentication_status, service_features,
-                    enabled_rule_ids, nagecen_handoff_id
-                ) VALUES (%s, %s, %s, 'queued', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    enabled_rule_ids, nagecen_handoff_id{', account_id' if account else ''}
+                ) VALUES (%s, %s, %s, 'queued', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s{', %s' if account else ''})
                 RETURNING *
                 """,
                 (
@@ -373,7 +378,7 @@ def create_scan_job(
                     Jsonb(request.service_features),
                     Jsonb(list(level.active_rule_ids)),
                     verification["nagecen_handoff_id"],
-                ),
+                ) + ((account.id,) if account else ()),
             )
             job = cursor.fetchone()
         connection.commit()
@@ -389,10 +394,12 @@ def create_scan_job(
 def get_scan_job(
     job_id: uuid.UUID,
     connection: Connection = Depends(get_connection),
+    account: AccountContext | None = Depends(get_account_context),
 ) -> ScanJobResponse:
+    predicate, owner_params = owner_filter(account)
     with connection.cursor() as cursor:
-        cursor.execute("SELECT * FROM scan_jobs WHERE id = %s", (job_id,))
-        job = cursor.fetchone()
+        cursor.execute("SELECT * FROM scan_jobs WHERE id = %s" + predicate, (job_id,) + owner_params)
+        job = visible_record(cursor.fetchone(), account)
 
     if job is None:
         raise HTTPException(
@@ -408,11 +415,13 @@ def cancel_scan_job(
     job_id: uuid.UUID,
     connection: Connection = Depends(get_connection),
     secret_store: AuthenticationSecretStore = Depends(create_authentication_secret_store),
+    account: AccountContext | None = Depends(get_account_context),
 ) -> ScanJobResponse:
+    predicate, owner_params = owner_filter(account)
     finished_at = datetime.now(UTC)
     with connection.cursor() as cursor:
-        cursor.execute("SELECT * FROM scan_jobs WHERE id = %s FOR UPDATE", (job_id,))
-        job = cursor.fetchone()
+        cursor.execute("SELECT * FROM scan_jobs WHERE id = %s" + predicate + " FOR UPDATE", (job_id,) + owner_params)
+        job = visible_record(cursor.fetchone(), account)
         if job is None:
             raise HTTPException(
                 status_code=404,

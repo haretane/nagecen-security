@@ -202,6 +202,7 @@ def present_findings(report: Any, service_features: list[str] | None = None) -> 
                     "priority_label": priority_label,
                     "title": title,
                     "technical_title": technical_title,
+                    "confidence_label": {"1": "低", "2": "中", "3": "高", "4": "高", "0": "誤検出として分類"}.get(str(alert.get("confidence", "")), "不明"),
                     "description": description or "詳しい内容を確認してください。",
                     "solution": solution or "利用しているサーバーやフレームワークの設定を確認してください。",
                     "location_count": len(locations),

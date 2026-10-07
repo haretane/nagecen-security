@@ -24,6 +24,7 @@ from app.worker.zap_report import (
     parse_crawled_url_count,
     summarize_zap_report,
 )
+from app.security.diagnostic_availability import diagnostics_paused
 from app.integrations.webhook import (
     assessment_payload,
     deliver_due_webhook,
@@ -515,7 +516,7 @@ def main() -> None:
         with psycopg.connect(database_url, row_factory=dict_row) as connection:
             deliver_due_webhook(connection)
             fail_stale_jobs(connection)
-            job = claim_job(connection)
+            job = None if diagnostics_paused() else claim_job(connection)
             if job is None:
                 time.sleep(POLL_SECONDS)
                 continue
